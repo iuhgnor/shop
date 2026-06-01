@@ -3,7 +3,10 @@
 大学生创业项目展示，类似餐厅点单的小程序
 """
 
+import os
+
 import streamlit as st
+from PIL import Image
 
 from products import (
     ALL_PRODUCTS,
@@ -18,6 +21,74 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+def load_and_resize_image(image_path, target_size=(300, 200)):
+    """
+    加载并调整图片大小到统一尺寸
+
+    Args:
+        image_path: 图片文件路径
+        target_size: 目标尺寸 (宽, 高)，默认 300x200
+
+    Returns:
+        PIL Image对象或None
+    """
+    try:
+        if not os.path.exists(image_path):
+            # 如果图片不存在，返回None
+            return None
+
+        img = Image.open(image_path)
+
+        # 转换为RGB模式（处理PNG的RGBA）
+        if img.mode in ("RGBA", "LA", "P"):
+            # 创建白色背景
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            if img.mode == "P":
+                img = img.convert("RGBA")
+            background.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
+            img = background
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+
+        # 调整大小，保持宽高比
+        img.thumbnail(target_size, Image.Resampling.LANCZOS)
+
+        # 创建新图像，将调整后的图像放在中心
+        new_img = Image.new("RGB", target_size, (255, 255, 255))
+        img_width, img_height = img.size
+        left = (target_size[0] - img_width) // 2
+        top = (target_size[1] - img_height) // 2
+        new_img.paste(img, (left, top))
+
+        return new_img
+    except Exception as e:
+        st.warning(f"无法加载图片 {image_path}: {str(e)}")
+        return None
+
+
+def display_product_image(image_path, caption="", width=300):
+    """
+    显示产品图片，统一尺寸
+
+    Args:
+        image_path: 图片路径
+        caption: 图片标题
+        width: 图片宽度（像素），默认300像素
+    """
+    resized_img = load_and_resize_image(image_path)
+
+    if resized_img:
+        st.image(resized_img, caption=caption, width=width)
+    else:
+        # 如果图片加载失败，显示占位符
+        st.image(
+            "https://via.placeholder.com/300x200/FFFFFF/666666?text=产品图片",
+            caption=caption,
+            width=width,
+        )
+
 
 # 自定义CSS样式
 st.markdown(
@@ -61,6 +132,50 @@ st.markdown(
     .stButton > button {
         width: 100%;
     }
+    .quantity-container {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        margin-top: 1rem;
+        width: 100%;
+    }
+    .quantity-input {
+        flex: 1;
+        margin-right: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+    .quantity-button {
+        flex: 1;
+        margin-left: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+    .quantity-input > div {
+        width: 100%;
+    }
+    .quantity-button > div {
+        width: 100%;
+    }
+    .featured-product-footer {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+    }
+    .featured-price {
+        flex: 1;
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #e74c3c;
+        margin-right: 0.5rem;
+    }
+    .featured-button {
+        flex: 1;
+        margin-left: 0.5rem;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -79,8 +194,16 @@ def init_session_state():
 
 def render_header():
     """渲染页面头部"""
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, _ = st.columns([1, 3, 1], vertical_alignment="bottom")
 
+    # 左侧：人偶
+    with col1:
+        try:
+            st.image("images/人偶形象IP.png", width=150)
+        except Exception:
+            st.markdown("### 🌸")
+
+    # 中间：标题
     with col2:
         st.markdown(
             """
@@ -92,18 +215,6 @@ def render_header():
             unsafe_allow_html=True,
         )
 
-    # 显示购物车信息
-    with col3:
-        cart_total = sum(item["quantity"] for item in st.session_state.cart.values())
-        cart_value = sum(
-            item["quantity"] * item["price"] for item in st.session_state.cart.values()
-        )
-
-        st.metric("购物车", f"{cart_total} 件商品", f"¥{cart_value:.2f}")
-
-        if st.button("查看购物车", type="primary"):
-            st.session_state.current_page = "cart"
-
 
 def render_home_page():
     """渲染主页"""
@@ -114,8 +225,8 @@ def render_home_page():
 
     with col1:
         st.markdown("### 传统丝网花")
-        st.image(
-            "images/01-常规产品/基础款-01-单只梅花丝网花.jpg", use_column_width=True
+        display_product_image(
+            "images/01-常规产品/基础款-01-单只梅花丝网花.jpg", width=300
         )
         if st.button("浏览传统丝网花", key="btn_traditional", type="primary"):
             st.session_state.current_page = "category"
@@ -124,9 +235,9 @@ def render_home_page():
 
     with col2:
         st.markdown("### 创新丝网花")
-        st.image(
+        display_product_image(
             "images/02-创新丝网花/01-婚庆产品-婚礼路引花艺-02.jpg",
-            use_column_width=True,
+            width=300,
         )
         if st.button("浏览创新丝网花", key="btn_innovative", type="primary"):
             st.session_state.current_page = "category"
@@ -135,7 +246,9 @@ def render_home_page():
 
     with col3:
         st.markdown("### 新产品")
-        st.image("images/03-新产品/01-风铃捕梦网等装饰品-01.png", use_column_width=True)
+        display_product_image(
+            "images/03-新产品/01-风铃捕梦网等装饰品-01.png", width=300
+        )
         if st.button("浏览新产品", key="btn_new", type="primary"):
             st.session_state.current_page = "category"
             st.session_state.selected_category = ProductCategory.NEW
@@ -152,17 +265,36 @@ def render_home_page():
     cols = st.columns(4)
     for idx, product in enumerate(featured_products):
         with cols[idx]:
-            st.image(product.image_path, use_column_width=True)
+            display_product_image(product.image_path, width=300)
             st.markdown(f"**{product.name}**")
-            st.markdown(
-                f'<div class="price-tag">¥{product.price}</div>', unsafe_allow_html=True
-            )
 
-            # 添加到购物车按钮
-            if st.button("加入购物车", key=f"add_featured_{product.id}"):
-                add_to_cart(product.id, product.name, product.price)
-                st.success(f"已添加 {product.name} 到购物车!")
-                st.rerun()
+            # 价格列
+            st.markdown(
+                f'<div class="price-tag">¥{product.price}</div>',
+                unsafe_allow_html=True,
+            )
+            col11, col12 = st.columns([2, 1], vertical_alignment="bottom")
+            with col11:
+                # 数量输入框
+                quantity = st.number_input(
+                    "数量",
+                    min_value=1,
+                    max_value=10,
+                    value=1,
+                    key=f"qty_{product.id}",
+                )
+            with col12:
+                # 按钮列
+                if st.button(
+                    "加入购物车",
+                    key=f"add_featured_{product.id}",
+                    use_container_width=True,
+                ):
+                    add_to_cart(product.id, product.name, product.price, quantity)
+                    st.success(f"已添加 {product.name} 到购物车!")
+                    st.rerun()
+
+    st.markdown("---")
 
 
 def render_category_page():
@@ -189,16 +321,10 @@ def render_category_page():
                 product = products[idx]
                 with cols[j]:
                     # 产品卡片
-                    st.markdown('<div class="product-card">', unsafe_allow_html=True)
+                    st.markdown("---")
 
                     # 产品图片
-                    try:
-                        st.image(product.image_path, use_column_width=True)
-                    except Exception:
-                        st.image(
-                            "https://via.placeholder.com/300x200?text=产品图片",
-                            use_column_width=True,
-                        )
+                    display_product_image(product.image_path, width=300)
 
                     # 产品信息
                     st.markdown(f"### {product.name}")
@@ -208,9 +334,10 @@ def render_category_page():
                         unsafe_allow_html=True,
                     )
 
-                    # 数量选择器
-                    col_qty1, col_qty2 = st.columns([2, 1])
-                    with col_qty1:
+                    # 数量选择器和按钮（底端对齐）
+                    col1, col2 = st.columns([2, 1], vertical_alignment="bottom")
+                    with col1:
+                        # 数量输入框
                         quantity = st.number_input(
                             "数量",
                             min_value=1,
@@ -219,16 +346,16 @@ def render_category_page():
                             key=f"qty_{product.id}",
                         )
 
-                    # 添加到购物车按钮
-                    with col_qty2:
-                        if st.button("加入", key=f"add_{product.id}"):
+                    with col2:
+                        # 加入购物车按钮
+                        if st.button(
+                            "加入", key=f"add_{product.id}", use_container_width=True
+                        ):
                             add_to_cart(
                                 product.id, product.name, product.price, quantity
                             )
                             st.success(f"已添加 {quantity} 件 {product.name} 到购物车!")
                             st.rerun()
-
-                    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_cart_page():
@@ -437,6 +564,7 @@ def main():
     """主函数"""
     init_session_state()
     render_header()
+    st.markdown("---")
 
     # 根据当前页面渲染不同内容
     current_page = st.session_state.current_page
@@ -450,8 +578,24 @@ def main():
     elif current_page == "checkout":
         render_checkout_page()
 
-    # 侧边栏 - 购物车预览
+    # 侧边栏 - 购物车预览和品牌信息
     with st.sidebar:
+        # LOGO
+        st.image("images/logo.jpg", width=60)
+
+        # 页面导航
+        # st.markdown("## 📱 页面导航")
+
+        if st.button("🏠 首页", use_container_width=True):
+            st.session_state.current_page = "home"
+            st.rerun()
+
+        if st.button("🛒 购物车", use_container_width=True):
+            st.session_state.current_page = "cart"
+            st.rerun()
+
+        st.markdown("---")
+
         st.markdown("## 🛍️ 购物车预览")
 
         cart = st.session_state.cart
@@ -464,37 +608,22 @@ def main():
                 item["price"] * item["quantity"] for item in cart.values()
             )
 
-            st.markdown("---")
+            # st.markdown("---")
             st.markdown(f"**总计:** {total_items} 件商品")
             st.markdown(f"**金额:** ¥{total_price:.2f}")
 
-            if st.button("去结算", type="primary", use_container_width=True):
-                st.session_state.current_page = "checkout"
-                st.rerun()
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("去结算", type="primary", use_container_width=True):
+                    st.session_state.current_page = "checkout"
+                    st.rerun()
+            with col_btn2:
+                if st.button("清空购物车", type="secondary", use_container_width=True):
+                    clear_cart()
+                    st.success("购物车已清空!")
+                    st.rerun()
         else:
             st.info("购物车为空")
-
-        st.markdown("---")
-        st.markdown("## ℹ️ 关于我们")
-        st.markdown("""
-        大学生创业项目  
-        手工丝网花制作  
-        支持定制设计  
-        联系电话: 138-XXXX-XXXX  
-        微信: silkflower_shop
-        """)
-
-        # 页面导航
-        st.markdown("---")
-        st.markdown("## 📱 页面导航")
-
-        if st.button("🏠 首页", use_container_width=True):
-            st.session_state.current_page = "home"
-            st.rerun()
-
-        if st.button("🛒 购物车", use_container_width=True):
-            st.session_state.current_page = "cart"
-            st.rerun()
 
 
 if __name__ == "__main__":
