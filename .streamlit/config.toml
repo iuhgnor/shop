@@ -1,0 +1,13 @@
+# Streamlit配置文件
+# 用于自定义Streamlit Cloud部署
+
+[theme]
+primaryColor = "#FF4B4B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+font = "sans serif"
+
+[server]
+port = 8501
+address = "0.0.0.0"
